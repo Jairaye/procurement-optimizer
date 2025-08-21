@@ -41,17 +41,38 @@ st.markdown("""
 def load_data():
     """Load and cache the NSN dataset"""
     try:
-        # Adjust path based on your structure
-        df = pd.read_excel('../data/nsn_data.csv')  # Note: despite .csv extension, it's Excel
+        # Try different methods to read the file
+        
+        # Method 1: Try Excel with openpyxl engine
+        try:
+            df = pd.read_excel('data/nsn_data.csv', engine='openpyxl')
+            st.success("Loaded as Excel file with openpyxl engine")
+        except:
+            # Method 2: Try Excel with xlrd engine
+            try:
+                df = pd.read_excel('data/nsn_data.csv', engine='xlrd')
+                st.success("Loaded as Excel file with xlrd engine")
+            except:
+                # Method 3: Try as CSV with different encodings
+                try:
+                    df = pd.read_csv('data/nsn_data.csv', encoding='utf-8')
+                    st.success("Loaded as CSV file with UTF-8 encoding")
+                except:
+                    # Method 4: Try CSV with latin-1 encoding
+                    df = pd.read_csv('data/nsn_data.csv', encoding='latin-1')
+                    st.success("Loaded as CSV file with latin-1 encoding")
         
         # Clean and prepare data
         df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
         df = df.dropna(subset=['Price'])
         df['Price_Log'] = np.log1p(df['Price'])  # Log transformation for better visualization
         
+        st.info(f"Successfully loaded {len(df)} records")
         return df
+        
     except Exception as e:
         st.error(f"Error loading data: {e}")
+        st.error("Please check that the data file exists and is in the correct format")
         return pd.DataFrame()
 
 def create_summary_metrics(df):

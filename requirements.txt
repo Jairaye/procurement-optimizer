@@ -34,3 +34,22 @@ pytz>=2023.3
 # Memory & Performance
 # numba>=0.57.0  # For performance optimization of numerical computations
 # dask>=2023.8.0 # For handling larger datasets
+
+# Core Web Framework
+streamlit>=1.28.0
+
+# Data Processing & Analysis
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0  # For Excel files
+xlrd>=2.0.1      # Alternative Excel engine
+
+# Visualization
+plotly>=5.15.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+altair>=5.0.0
+
+# Statistical Analysis & Machine Learning
+scikit-learn>=1.3.0
+scipy>=1.11.0
