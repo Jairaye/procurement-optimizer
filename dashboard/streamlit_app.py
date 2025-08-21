@@ -66,19 +66,29 @@ st.markdown("""
 def load_data():
     """Load and cache the NSN dataset"""
     try:
-        # Try Excel format first
+        # Try multiple approaches to read the file
         try:
-            df = pd.read_excel('data/nsn_data.csv')
+            # Method 1: Excel with openpyxl engine
+            df = pd.read_excel('data/nsn_data.csv', engine='openpyxl')
+            st.success("✅ Loaded as Excel file")
         except:
-            # Fallback to CSV if Excel fails
-            df = pd.read_csv('data/nsn_data.csv')
+            try:
+                # Method 2: CSV with different encodings
+                df = pd.read_csv('data/nsn_data.csv', encoding='utf-8')
+                st.success("✅ Loaded as CSV (UTF-8)")
+            except:
+                # Method 3: CSV with latin-1 encoding
+                df = pd.read_csv('data/nsn_data.csv', encoding='latin-1')
+                st.success("✅ Loaded as CSV (Latin-1)")
         
         # Clean and prepare data
         df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
         df = df.dropna(subset=['Price'])
         df['Price_Log'] = np.log1p(df['Price'])
         
+        st.info(f"Successfully loaded {len(df):,} records")
         return df
+        
     except Exception as e:
         st.error(f"Error loading data: {e}")
         st.error("Make sure 'data/nsn_data.csv' exists in your repository")
