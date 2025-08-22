@@ -5,15 +5,43 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 
-# Import our custom modules
+# Direct import approach - bypassing package structure
+import sys
+import os
+
+# Get the absolute path to the src directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(current_dir, 'src')
+
+# Add src directory to the beginning of sys.path
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
+
 try:
-    from src.normalize_costs import normalize_procurement_costs, CostNormalizer
-    from src.substitution_logic import find_product_substitutions, ProductSubstitutionEngine
-    from src.scenario_simulator import create_scenario_simulator, ScenarioType
-    from src.nsn_dependency_mapper import analyze_nsn_dependencies, create_bundle_recommendations
+    # Now import directly as if the modules are in the current directory
+    import normalize_costs as nc
+    import substitution_logic as sl
+    import scenario_simulator as ss
+    import nsn_dependency_mapper as ndm
+    
+    # Create aliases for the functions we need
+    normalize_procurement_costs = nc.normalize_procurement_costs
+    CostNormalizer = nc.CostNormalizer
+    find_product_substitutions = sl.find_product_substitutions
+    ProductSubstitutionEngine = sl.ProductSubstitutionEngine
+    create_scenario_simulator = ss.create_scenario_simulator
+    ScenarioType = ss.ScenarioType
+    analyze_nsn_dependencies = ndm.analyze_nsn_dependencies
+    create_bundle_recommendations = ndm.create_bundle_recommendations
+    
     modules_available = True
+    st.success("✅ Advanced modules loaded successfully!")
+    
 except ImportError as e:
     st.warning(f"Advanced modules not available: {e}")
+    modules_available = False
+except Exception as e:
+    st.warning(f"Error loading modules: {e}")
     modules_available = False
 
 # Page configuration
