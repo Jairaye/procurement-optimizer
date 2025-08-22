@@ -1,8 +1,8 @@
 """
-Cost Normalization Module for Procurement Optimizer
+Substitution Logic Module for Procurement Optimizer
 
-This module standardizes costs across different units of issue (UI) to enable
-fair price comparisons and identify cost optimization opportunities.
+This module identifies alternative products that could substitute for expensive items,
+helping procurement analysts find cost-saving opportunities while maintaining functionality.
 
 Author: Your Name
 Date: August 2025
@@ -11,234 +11,329 @@ Date: August 2025
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional
+from difflib import SequenceMatcher
+import re
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class CostNormalizer:
+class ProductSubstitutionEngine:
     """
-    Normalizes procurement costs across different units of issue for fair comparison.
-    
-    Business Logic:
-    - Converts all prices to a standard "per unit" basis
-    - Handles bulk packaging conversions (BX=12, DZ=12, etc.)
-    - Identifies pricing anomalies and optimization opportunities
+    Identifies potential product substitutions based on:
+    - Similar product names and descriptions
+    - Same functional category
+    - Compatible specifications
+    - Significant price differences
     """
     
-    def __init__(self):
-        """Initialize the cost normalizer with standard unit conversions."""
+    def __init__(self, similarity_threshold: float = 0.6, max_price_ratio: float = 0.8):
+        """
+        Initialize the substitution engine.
         
-        # Standard unit conversion factors (to single units)
-        self.unit_conversions = {
-            'EA': 1,      # Each (base unit)
-            'BX': 12,     # Box (typically 12 items)
-            'DZ': 12,     # Dozen
-            'PG': 1,      # Package (treat as single unit)
-            'SE': 1,      # Set (treat as single unit)
-            'KT': 1,      # Kit (treat as single unit)
-            'PR': 2,      # Pair
-            'RO': 500,    # Roll (estimated)
-            'HD': 100,    # Hundred
-            'BD': 1000,   # Thousand (BD = "bund" or bundle)
-            'DR': 1,      # Drum (treat as single unit)
-            'CN': 1,      # Can (treat as single unit)
-            'CO': 1,      # Container (treat as single unit)
-            'SH': 1,      # Sheet (treat as single unit)
-            'BG': 1,      # Bag (treat as single unit)
-            'MX': 1000,   # Mix/thousand
-            'GL': 1,      # Gallon (treat as single unit)
-            'CL': 1,      # Coil (treat as single unit)
-            'BE': 1,      # Bottle (treat as single unit)
-            'PD': 1,      # Pad (treat as single unit)
-            'LG': 1,      # Log (treat as single unit)
-            'RL': 1,      # Roll (treat as single unit)
-            'BT': 1,      # Boot (treat as single unit)
-            'LB': 1,      # Pound (treat as single unit)
-            'AT': 1,      # Assembly (treat as single unit)
-            'QT': 1,      # Quart (treat as single unit)
-            'PT': 1,      # Pint (treat as single unit)
-            'GR': 144,    # Gross (144 items)
-            'BK': 1,      # Book (treat as single unit)
-            'BO': 1,      # Bottle (treat as single unit)
-            'SL': 1,      # Sleeve (treat as single unit)
-            'AY': 1,      # Array (treat as single unit)
-            'FT': 1,      # Foot (treat as single unit)
-            'TU': 1,      # Tube (treat as single unit)
-            'RM': 500,    # Ream (500 sheets)
-            'OT': 1,      # Outfit (treat as single unit)
-            'HK': 1,      # Hook (treat as single unit)
-            'CE': 1,      # Case (treat as single unit)
-            'BL': 1,      # Bale (treat as single unit)
+        Args:
+            similarity_threshold: Minimum similarity score (0-1) for substitution candidates
+            max_price_ratio: Maximum price ratio for substitution (0.8 = 20% savings minimum)
+        """
+        self.similarity_threshold = similarity_threshold
+        self.max_price_ratio = max_price_ratio
+        
+        # Common substitution patterns
+        self.substitution_patterns = {
+            'brand_variations': [
+                (r'\b(HP|Hewlett.?Packard)\b', 'printer_supplies'),
+                (r'\b(Canon|Lexmark|Brother|Epson)\b', 'printer_supplies'),
+                (r'\b(3M|Scotch)\b', 'office_supplies'),
+                (r'\b(Pelican|Storm)\b', 'cases_containers'),
+            ],
+            'generic_equivalents': [
+                (r'\b(OEM|Original|Genuine)\b', 'branded'),
+                (r'\b(Compatible|Generic|Remanufactured)\b', 'aftermarket'),
+            ],
+            'size_variations': [
+                (r'\b(\d+(?:\.\d+)?)\s?(inch|in|mm|cm)\b', 'dimensional'),
+                (r'\b(Small|Medium|Large|XL|XXL)\b', 'size_category'),
+            ]
         }
         
-        logger.info(f"Initialized CostNormalizer with {len(self.unit_conversions)} unit types")
+        logger.info("Initialized ProductSubstitutionEngine")
     
-    def normalize_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+    def find_substitutions(self, df: pd.DataFrame, target_nsn: str) -> pd.DataFrame:
         """
-        Normalize costs for an entire DataFrame.
+        Find potential substitutions for a specific NSN.
         
         Args:
-            df: DataFrame with 'Price', 'UI', and 'common_name' columns
+            df: DataFrame with procurement data
+            target_nsn: NSN to find substitutions for
             
         Returns:
-            DataFrame with additional normalized cost columns
+            DataFrame of potential substitutions ranked by savings potential
         """
-        logger.info(f"Starting cost normalization for {len(df)} items")
+        # Get target item
+        target_item = df[df['NSN'] == target_nsn]
+        if target_item.empty:
+            logger.warning(f"NSN {target_nsn} not found in dataset")
+            return pd.DataFrame()
         
-        # Create a copy to avoid modifying original data
-        normalized_df = df.copy()
+        target_row = target_item.iloc[0]
+        logger.info(f"Finding substitutions for {target_nsn}: {target_row['common_name']}")
         
-        # Add normalized cost columns
-        normalized_df['unit_conversion_factor'] = normalized_df['UI'].map(self.unit_conversions)
-        normalized_df['price_per_unit'] = (
-            normalized_df['Price'] / normalized_df['unit_conversion_factor'].fillna(1)
-        )
+        # Find potential candidates
+        candidates = self._find_substitution_candidates(df, target_row)
         
-        # Add cost category (for business insights)
-        normalized_df['cost_category'] = pd.cut(
-            normalized_df['price_per_unit'],
-            bins=[0, 1, 10, 100, 1000, float('inf')],
-            labels=['Low (<$1)', 'Medium ($1-$10)', 'High ($10-$100)', 
-                   'Very High ($100-$1000)', 'Premium (>$1000)']
-        )
-        
-        # Calculate category statistics
-        normalized_df = self._add_category_benchmarks(normalized_df)
-        
-        logger.info("Cost normalization completed successfully")
-        return normalized_df
-    
-    def _add_category_benchmarks(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Add category-based price benchmarks for comparison."""
-        
-        # Calculate median price per unit by category
-        category_medians = df.groupby('common_name')['price_per_unit'].median()
-        df['category_median_price'] = df['common_name'].map(category_medians)
-        
-        # Calculate price ratio vs category median
-        df['price_vs_category_median'] = df['price_per_unit'] / df['category_median_price']
-        
-        # Flag potential optimization opportunities
-        df['optimization_flag'] = df['price_vs_category_median'].apply(
-            lambda x: 'High Cost' if x > 1.5 else 'Low Cost' if x < 0.7 else 'Normal'
-        )
-        
-        return df
-    
-    def find_cost_anomalies(self, df: pd.DataFrame, threshold: float = 2.0) -> pd.DataFrame:
-        """
-        Identify items with unusually high or low costs compared to similar items.
-        
-        Args:
-            df: Normalized DataFrame
-            threshold: Standard deviations from mean to flag as anomaly
-            
-        Returns:
-            DataFrame of potential cost anomalies
-        """
-        normalized_df = self.normalize_dataframe(df) if 'price_per_unit' not in df.columns else df
-        
-        # Calculate z-scores within each category
-        category_stats = normalized_df.groupby('common_name')['price_per_unit'].agg(['mean', 'std'])
-        
-        anomalies = []
-        for category in category_stats.index:
-            category_data = normalized_df[normalized_df['common_name'] == category]
-            mean_price = category_stats.loc[category, 'mean']
-            std_price = category_stats.loc[category, 'std']
-            
-            if std_price > 0:  # Avoid division by zero
-                z_scores = (category_data['price_per_unit'] - mean_price) / std_price
-                anomaly_mask = abs(z_scores) > threshold
-                
-                if anomaly_mask.any():
-                    category_anomalies = category_data[anomaly_mask].copy()
-                    category_anomalies['z_score'] = z_scores[anomaly_mask]
-                    category_anomalies['anomaly_type'] = np.where(
-                        z_scores[anomaly_mask] > 0, 'High Cost', 'Low Cost'
-                    )
-                    anomalies.append(category_anomalies)
-        
-        if anomalies:
-            anomaly_df = pd.concat(anomalies, ignore_index=True)
-            logger.info(f"Found {len(anomaly_df)} cost anomalies")
-            return anomaly_df.sort_values('z_score', ascending=False)
+        # Score and rank candidates
+        if not candidates.empty:
+            scored_candidates = self._score_substitutions(candidates, target_row)
+            return scored_candidates.sort_values('substitution_score', ascending=False)
         else:
-            logger.info("No significant cost anomalies found")
+            logger.info(f"No substitution candidates found for {target_nsn}")
             return pd.DataFrame()
     
-    def generate_savings_opportunities(self, df: pd.DataFrame) -> Dict:
+    def find_category_substitutions(self, df: pd.DataFrame, category: str, top_n: int = 20) -> pd.DataFrame:
         """
-        Identify potential cost savings opportunities.
+        Find substitution opportunities within a product category.
         
         Args:
-            df: Normalized DataFrame
+            df: DataFrame with procurement data
+            category: Product category to analyze
+            top_n: Number of top opportunities to return
             
         Returns:
-            Dictionary with savings analysis
+            DataFrame of substitution opportunities ranked by potential savings
         """
-        normalized_df = self.normalize_dataframe(df) if 'price_per_unit' not in df.columns else df
+        category_items = df[df['common_name'] == category].copy()
         
-        # Find high-cost items that could be substituted
-        high_cost_items = normalized_df[normalized_df['optimization_flag'] == 'High Cost']
+        if len(category_items) < 2:
+            logger.info(f"Not enough items in category '{category}' for substitution analysis")
+            return pd.DataFrame()
         
-        # Calculate potential savings
-        total_high_cost_value = high_cost_items['Price'].sum()
+        logger.info(f"Analyzing substitution opportunities in category: {category}")
         
-        # Estimate savings if high-cost items were reduced to category median
-        potential_savings = high_cost_items.apply(
-            lambda row: row['Price'] - (row['category_median_price'] * row['unit_conversion_factor']),
-            axis=1
-        ).sum()
+        # Sort by price (highest first)
+        category_items = category_items.sort_values('Price', ascending=False)
         
-        # Top categories for optimization
-        category_opportunities = (
-            high_cost_items.groupby('common_name')
-            .agg({
-                'Price': 'sum',
-                'NSN': 'count',
-                'price_vs_category_median': 'mean'
-            })
-            .sort_values('Price', ascending=False)
-            .head(10)
+        substitution_opportunities = []
+        
+        # Compare expensive items with cheaper alternatives
+        for i, (idx, expensive_item) in enumerate(category_items.head(10).iterrows()):
+            # Find cheaper alternatives
+            cheaper_alternatives = category_items[
+                (category_items['Price'] < expensive_item['Price'] * self.max_price_ratio) &
+                (category_items.index != idx)
+            ]
+            
+            if not cheaper_alternatives.empty:
+                for alt_idx, alternative in cheaper_alternatives.iterrows():
+                    similarity = self._calculate_similarity(expensive_item, alternative)
+                    
+                    if similarity >= self.similarity_threshold:
+                        potential_savings = expensive_item['Price'] - alternative['Price']
+                        
+                        substitution_opportunities.append({
+                            'expensive_nsn': expensive_item['NSN'],
+                            'expensive_name': expensive_item['common_name'],
+                            'expensive_price': expensive_item['Price'],
+                            'alternative_nsn': alternative['NSN'],
+                            'alternative_name': alternative['common_name'],
+                            'alternative_price': alternative['Price'],
+                            'potential_savings': potential_savings,
+                            'savings_percentage': (potential_savings / expensive_item['Price']) * 100,
+                            'similarity_score': similarity,
+                            'substitution_score': self._calculate_substitution_score(
+                                similarity, potential_savings, expensive_item['Price']
+                            )
+                        })
+        
+        if substitution_opportunities:
+            opportunities_df = pd.DataFrame(substitution_opportunities)
+            return opportunities_df.sort_values('substitution_score', ascending=False).head(top_n)
+        else:
+            return pd.DataFrame()
+    
+    def analyze_brand_substitutions(self, df: pd.DataFrame) -> Dict:
+        """
+        Analyze potential savings from brand substitutions (OEM vs Generic).
+        
+        Args:
+            df: DataFrame with procurement data
+            
+        Returns:
+            Dictionary with brand substitution analysis
+        """
+        logger.info("Analyzing brand substitution opportunities")
+        
+        # Identify branded vs generic items
+        df['brand_type'] = df.apply(self._classify_brand_type, axis=1)
+        
+        # Group by functional similarity
+        brand_analysis = {}
+        
+        # Find OEM items that have generic equivalents
+        oem_items = df[df['brand_type'] == 'branded']
+        generic_items = df[df['brand_type'] == 'aftermarket']
+        
+        substitution_pairs = []
+        
+        for _, oem_item in oem_items.iterrows():
+            # Find similar generic items
+            similar_generics = generic_items[
+                generic_items['common_name'] == oem_item['common_name']
+            ]
+            
+            if not similar_generics.empty:
+                best_generic = similar_generics.loc[similar_generics['Price'].idxmin()]
+                
+                if best_generic['Price'] < oem_item['Price'] * self.max_price_ratio:
+                    potential_savings = oem_item['Price'] - best_generic['Price']
+                    
+                    substitution_pairs.append({
+                        'oem_nsn': oem_item['NSN'],
+                        'oem_price': oem_item['Price'],
+                        'generic_nsn': best_generic['NSN'],
+                        'generic_price': best_generic['Price'],
+                        'category': oem_item['common_name'],
+                        'potential_savings': potential_savings,
+                        'savings_percentage': (potential_savings / oem_item['Price']) * 100
+                    })
+        
+        if substitution_pairs:
+            pairs_df = pd.DataFrame(substitution_pairs)
+            total_savings = pairs_df['potential_savings'].sum()
+            
+            brand_analysis = {
+                'total_potential_savings': total_savings,
+                'number_of_opportunities': len(pairs_df),
+                'average_savings_percentage': pairs_df['savings_percentage'].mean(),
+                'top_categories': pairs_df.groupby('category')['potential_savings'].sum().sort_values(ascending=False).head(5),
+                'substitution_pairs': pairs_df.sort_values('potential_savings', ascending=False)
+            }
+        else:
+            brand_analysis = {
+                'total_potential_savings': 0,
+                'number_of_opportunities': 0,
+                'average_savings_percentage': 0,
+                'top_categories': pd.Series(),
+                'substitution_pairs': pd.DataFrame()
+            }
+        
+        logger.info(f"Found {brand_analysis['number_of_opportunities']} brand substitution opportunities")
+        return brand_analysis
+    
+    def _find_substitution_candidates(self, df: pd.DataFrame, target_item: pd.Series) -> pd.DataFrame:
+        """Find potential substitution candidates for a target item."""
+        
+        # Filter candidates by category and price
+        candidates = df[
+            (df['common_name'] == target_item['common_name']) &  # Same category
+            (df['Price'] < target_item['Price'] * self.max_price_ratio) &  # Significantly cheaper
+            (df['NSN'] != target_item['NSN'])  # Different item
+        ].copy()
+        
+        return candidates
+    
+    def _calculate_similarity(self, item1: pd.Series, item2: pd.Series) -> float:
+        """Calculate similarity between two items based on name and description."""
+        
+        # Text similarity
+        name_similarity = SequenceMatcher(None, 
+            item1['common_name'].lower(), 
+            item2['common_name'].lower()
+        ).ratio()
+        
+        desc_similarity = 0
+        if pd.notna(item1.get('Description')) and pd.notna(item2.get('Description')):
+            desc_similarity = SequenceMatcher(None,
+                item1['Description'].lower()[:200],  # First 200 chars
+                item2['Description'].lower()[:200]
+            ).ratio()
+        
+        # Unit compatibility
+        unit_similarity = 1.0 if item1.get('UI') == item2.get('UI') else 0.7
+        
+        # Weighted average
+        overall_similarity = (
+            name_similarity * 0.4 +
+            desc_similarity * 0.4 +
+            unit_similarity * 0.2
         )
         
-        savings_analysis = {
-            'total_high_cost_value': total_high_cost_value,
-            'potential_savings': max(0, potential_savings),  # Ensure non-negative
-            'savings_percentage': (potential_savings / total_high_cost_value * 100) if total_high_cost_value > 0 else 0,
-            'high_cost_item_count': len(high_cost_items),
-            'top_optimization_categories': category_opportunities,
-            'optimization_summary': {
-                'items_to_review': len(high_cost_items),
-                'categories_affected': high_cost_items['common_name'].nunique(),
-                'average_cost_premium': high_cost_items['price_vs_category_median'].mean()
-            }
-        }
+        return overall_similarity
+    
+    def _calculate_substitution_score(self, similarity: float, savings: float, original_price: float) -> float:
+        """Calculate overall substitution score combining similarity and savings."""
         
-        logger.info(f"Identified ${potential_savings:,.2f} in potential savings ({savings_analysis['savings_percentage']:.1f}%)")
-        return savings_analysis
+        savings_score = min(savings / original_price, 0.5) * 2  # Normalize to 0-1
+        
+        # Weighted combination: 60% similarity, 40% savings
+        substitution_score = (similarity * 0.6) + (savings_score * 0.4)
+        
+        return substitution_score
+    
+    def _score_substitutions(self, candidates: pd.DataFrame, target_item: pd.Series) -> pd.DataFrame:
+        """Score substitution candidates."""
+        
+        scored_candidates = candidates.copy()
+        
+        # Calculate similarities and scores
+        scored_candidates['similarity_score'] = scored_candidates.apply(
+            lambda row: self._calculate_similarity(target_item, row), axis=1
+        )
+        
+        scored_candidates['potential_savings'] = target_item['Price'] - scored_candidates['Price']
+        scored_candidates['savings_percentage'] = (
+            scored_candidates['potential_savings'] / target_item['Price'] * 100
+        )
+        
+        scored_candidates['substitution_score'] = scored_candidates.apply(
+            lambda row: self._calculate_substitution_score(
+                row['similarity_score'], 
+                row['potential_savings'], 
+                target_item['Price']
+            ), axis=1
+        )
+        
+        # Filter by minimum similarity threshold
+        scored_candidates = scored_candidates[
+            scored_candidates['similarity_score'] >= self.similarity_threshold
+        ]
+        
+        return scored_candidates
+    
+    def _classify_brand_type(self, item: pd.Series) -> str:
+        """Classify item as branded, aftermarket, or unknown."""
+        
+        text_to_check = f"{item['common_name']} {item.get('Description', '')}".lower()
+        
+        # Check for aftermarket indicators
+        aftermarket_keywords = ['remanufactured', 'compatible', 'generic', 'aftermarket']
+        if any(keyword in text_to_check for keyword in aftermarket_keywords):
+            return 'aftermarket'
+        
+        # Check for branded indicators
+        branded_keywords = ['oem', 'original', 'genuine', 'hp ', 'canon', 'lexmark', '3m']
+        if any(keyword in text_to_check for keyword in branded_keywords):
+            return 'branded'
+        
+        return 'unknown'
 
-def normalize_procurement_costs(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict]:
+def find_product_substitutions(df: pd.DataFrame, nsn: str, max_results: int = 10) -> pd.DataFrame:
     """
-    Convenience function to normalize costs and generate savings analysis.
+    Convenience function to find substitutions for a specific NSN.
     
     Args:
         df: DataFrame with procurement data
+        nsn: NSN to find substitutions for
+        max_results: Maximum number of results to return
         
     Returns:
-        Tuple of (normalized DataFrame, savings analysis)
+        DataFrame of potential substitutions
     """
-    normalizer = CostNormalizer()
-    normalized_df = normalizer.normalize_dataframe(df)
-    savings_analysis = normalizer.generate_savings_opportunities(normalized_df)
-    
-    return normalized_df, savings_analysis
+    engine = ProductSubstitutionEngine()
+    substitutions = engine.find_substitutions(df, nsn)
+    return substitutions.head(max_results)
 
-# Example usage and testing
+# Example usage
 if __name__ == "__main__":
-    # This would typically be called from your Streamlit app
-    print("Cost Normalization Module - Ready for import")
-    print("Usage: from src.normalize_costs import normalize_procurement_costs")
+    print("Product Substitution Engine - Ready for import")
+    print("Usage: from src.substitution_logic import find_product_substitutions")
