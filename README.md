@@ -2,6 +2,8 @@
 
 > **Advanced Analytics Platform** that identified **$210,475+ in procurement savings opportunities** across 12,454+ catalog items through sophisticated cost optimization, product substitution, and bundle analysis algorithms.
 
+(Open in Streamlit by pressing link below, app will awaken in less than a minute)
+
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://procurement-optimizer2.streamlit.app/)
 
 ## 🎯 **Business Impact**
