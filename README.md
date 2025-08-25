@@ -16,15 +16,15 @@ This procurement analytics platform demonstrates enterprise-grade capabilities b
 ## 📸 **Platform Screenshots**
 
 ### 📦 **Bundle Recommendations**
-![Bundle Analysis](screenshots/Bundle%20Opportunities.png)
+![Bundle Analysis](screenshots/Bundle_Opportunities.png)
 *Bundle optimization engine identifying $500+ savings per recommended package*
 
 ### 🏷️ **Category Performance Analysis**  
-![Category Analysis](screenshots/Category%20Performance.png)
+![Category Analysis](screenshots/Category_Performance.png)
 *Interactive treemap visualization showing product categories by value and average price*
 
 ### 💰 **Cost Analysis & Optimization**
-![Cost Analysis](screenshots/Cost%20Optimization%20Analysis.png)
+![Cost Analysis](screenshots/Cost_Optimization_Analysis.png)
 *Advanced cost normalization identifying $210K+ in savings opportunities with 1,948 high-cost items flagged for review*
 
 ### 📊 **Executive Dashboard**
@@ -32,11 +32,11 @@ This procurement analytics platform demonstrates enterprise-grade capabilities b
 *Professional analytics interface processing 12,454+ items across 2,676 categories*
 
 ### 🔄 **Product Substitution Engine**  
-![Substitution Analysis](screenshots/Product%20Substitution.png)
+![Substitution Analysis](screenshots/Product_Substitution.png)
 *Intelligent product matching finding 53% savings with 97% similarity scores*
 
 ### 🎯 **Scenario Simulation**
-![Scenario Planning](screenshots/Scenario%20Simulation.png)
+![Scenario Planning](screenshots/Scenario_Simulation.png)
 *Volume discount modeling and what-if analysis for strategic procurement planning*
 
 ## 🚀 **Key Features**
