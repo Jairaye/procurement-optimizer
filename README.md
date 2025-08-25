@@ -194,10 +194,10 @@ This project demonstrates:
 ## 🤝 **Connect & Collaborate**
 
 **Built by**: [Your Name]
-- 💼 **LinkedIn**: [Your LinkedIn Profile]
-- 📧 **Email**: [Your Email]
+- 💼 **LinkedIn**: https://www.linkedin.com/in/jradams11/
+- 📧 **Email**: ada.jos@outlook.com
 - 🌐 **Portfolio**: [Your Portfolio URL]
-- 💻 **GitHub**: [Your GitHub Profile]
+- 💻 **GitHub**: https://github.com/Jairaye
 
 ---
 
@@ -378,3 +378,10 @@ This project is part of a professional data analytics portfolio. Code available 
 **Portfolio Context**: This project showcases enterprise-grade data science capabilities with real-world business applications in procurement optimization and supply chain analytics.
 
 *Identifying $210,475+ in procurement savings through advanced analytics and intelligent automation.*
+
+---
+
+### Data Attribution
+
+**Data Source**: National Stock Number Extract - Catalog (Public Domain)
+*Dataset used for analytical demonstration and portfolio purposes only.*
