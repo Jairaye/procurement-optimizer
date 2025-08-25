@@ -193,10 +193,9 @@ This project demonstrates:
 
 ## 🤝 **Connect & Collaborate**
 
-**Built by**: [Your Name]
+**Built by**: Joshua Adams
 - 💼 **LinkedIn**: https://www.linkedin.com/in/jradams11/
 - 📧 **Email**: ada.jos@outlook.com
-- 🌐 **Portfolio**: [Your Portfolio URL]
 - 💻 **GitHub**: https://github.com/Jairaye
 
 ---
