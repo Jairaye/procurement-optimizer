@@ -364,11 +364,11 @@ This project demonstrates:
 
 ## 🤝 **Connect & Collaborate**
 
-**Built by**: [Your Name]
-- 💼 **LinkedIn**: [Your LinkedIn Profile]
-- 📧 **Email**: [Your Email]
-- 🌐 **Portfolio**: [Your Portfolio URL]
-- 💻 **GitHub**: [Your GitHub Profile]
+**Built by**: Joshua R. Adams
+- 💼 **LinkedIn**: https://www.linkedin.com/in/jradams11/
+- 📧 **Email**: ada.jos@outlook.com
+- 🌐 **Portfolio**: Coming Soon - github functions as portfolio for now
+- 💻 **GitHub**: github.com/Jairaye
 
 ---
 
